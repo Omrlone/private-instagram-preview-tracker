@@ -1,0 +1,37 @@
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div style="margin:30px; background:#1a1a1a; padding:30px; border-radius:10px;">
+    <h3>Views Per Day</h3>
+    <canvas id="viewsChart"></canvas>
+</div>
+
+<script>
+const ctx = document.getElementById('viewsChart');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ dates | tojson }},
+        datasets: [{
+            label: 'Views',
+            data: {{ counts | tojson }},
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: 'white' }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: 'white' }
+            },
+            y: {
+                ticks: { color: 'white' }
+            }
+        }
+    }
+});
+</script>

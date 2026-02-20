@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Profile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="center-page">
+
+<div class="card">
+    <h2>Edit Profile</h2>
+
+    <form method="POST">
+        <input type="text" name="name" value="{{ profile.name }}" required>
+        <textarea name="bio">{{ profile.bio }}</textarea>
+        <input type="text" name="college" value="{{ profile.college }}">
+        <textarea name="college_desc">{{ profile.college_desc }}</textarea>
+        <button type="submit">Save Changes</button>
+    </form>
+</div>
+
+</body>
+</html>

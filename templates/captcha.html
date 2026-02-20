@@ -1,0 +1,174 @@
+import os
+import random
+import io
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from PIL import Image, ImageDraw, ImageFont
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = "super-secret-key-change-this"
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
+db = SQLAlchemy(app)
+
+# ======================
+# DATABASE MODELS
+# ======================
+
+class Visitor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(100))
+    device = db.Column(db.String(300))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Photo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(200))
+    category = db.Column(db.String(50))  # portfolio / memories
+
+class Profile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200))
+    bio = db.Column(db.String(500))
+    college = db.Column(db.String(300))
+    college_desc = db.Column(db.String(1000))
+    admin_username = db.Column(db.String(100))
+    admin_password = db.Column(db.String(300))
+
+# ======================
+# INITIAL SETUP
+# ======================
+
+with app.app_context():
+    db.create_all()
+    if Profile.query.first() is None:
+        profile = Profile(
+            name="Omar Bashir Lone",
+            bio="Entropy at its peak.",
+            college="National Institute Of Technology Srinagar",
+            college_desc="Premier engineering institute located in Srinagar, known for academic excellence and innovation.",
+            admin_username="omarlone",
+            admin_password=generate_password_hash("sogamlolabkupwara")
+        )
+        db.session.add(profile)
+        db.session.commit()
+
+# ======================
+# CAPTCHA GENERATION
+# ======================
+
+@app.route("/captcha_image")
+def captcha_image():
+    num1 = random.randint(1, 10)
+    num2 = random.randint(1, 10)
+    question = f"{num1} + {num2} = ?"
+    session['captcha_answer'] = str(num1 + num2)
+
+    img = Image.new('RGB', (250, 80), color=(30, 30, 30))
+    d = ImageDraw.Draw(img)
+    d.text((20, 20), question, fill=(255, 255, 255))
+
+    buffer = io.BytesIO()
+    img.save(buffer, 'PNG')
+    buffer.seek(0)
+    return send_file(buffer, mimetype='image/png')
+
+# ======================
+# PUBLIC ROUTES
+# ======================
+
+@app.route("/", methods=["GET", "POST"])
+def captcha():
+    if request.method == "POST":
+        user_answer = request.form.get("captcha")
+        if user_answer == session.get("captcha_answer"):
+            visitor = Visitor(
+                ip=request.remote_addr,
+                device=request.user_agent.string
+            )
+            db.session.add(visitor)
+            db.session.commit()
+            return redirect("/portfolio")
+    return render_template("captcha.html")
+
+@app.route("/portfolio")
+def portfolio():
+    profile = Profile.query.first()
+    photos = Photo.query.filter_by(category="portfolio").all()
+    return render_template("portfolio.html", profile=profile, photos=photos)
+
+@app.route("/memories")
+def memories():
+    profile = Profile.query.first()
+    photos = Photo.query.filter_by(category="memories").all()
+    return render_template("memories.html", profile=profile, photos=photos)
+
+# ======================
+# ADMIN
+# ======================
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin_login():
+    profile = Profile.query.first()
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        if username == profile.admin_username and check_password_hash(profile.admin_password, password):
+            session["admin"] = True
+            return redirect("/dashboard")
+    return render_template("admin_login.html")
+
+@app.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
+    if not session.get("admin"):
+        return redirect("/admin")
+
+    if request.method == "POST":
+        file = request.files["photo"]
+        category = request.form["category"]
+        if file:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(filepath)
+            new_photo = Photo(filename=file.filename, category=category)
+            db.session.add(new_photo)
+            db.session.commit()
+
+    visitors = Visitor.query.order_by(Visitor.timestamp.desc()).all()
+    total_views = Visitor.query.count()
+    photos = Photo.query.all()
+    return render_template("admin_dashboard.html", visitors=visitors, total_views=total_views, photos=photos)
+
+@app.route("/delete/<int:id>")
+def delete_photo(id):
+    if not session.get("admin"):
+        return redirect("/admin")
+
+    photo = Photo.query.get(id)
+    if photo:
+        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], photo.filename))
+        db.session.delete(photo)
+        db.session.commit()
+    return redirect("/dashboard")
+
+@app.route("/edit", methods=["GET", "POST"])
+def edit_profile():
+    if not session.get("admin"):
+        return redirect("/admin")
+
+    profile = Profile.query.first()
+    if request.method == "POST":
+        profile.name = request.form["name"]
+        profile.bio = request.form["bio"]
+        profile.college = request.form["college"]
+        profile.college_desc = request.form["college_desc"]
+        db.session.commit()
+        return redirect("/dashboard")
+
+    return render_template("admin_edit.html", profile=profile)
+
+if __name__ == "__main__":
+    app.run(debug=True)

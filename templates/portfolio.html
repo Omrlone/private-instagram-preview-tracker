@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ profile.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+    <h2>{{ profile.name }}</h2>
+    <a href="/memories">View Memories →</a>
+</nav>
+
+<section class="profile-section">
+    <h1>{{ profile.name }}</h1>
+    <p class="bio">{{ profile.bio }}</p>
+
+    <div class="college-box">
+        <h3>{{ profile.college }}</h3>
+        <p>{{ profile.college_desc }}</p>
+    </div>
+</section>
+
+<section class="gallery">
+    {% for photo in photos %}
+        <div class="gallery-item">
+            <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}">
+        </div>
+    {% endfor %}
+</section>
+
+</body>
+</html>
