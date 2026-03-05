@@ -2,32 +2,73 @@
 <html>
 <head>
     <title>{{ profile.name }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        body{
+            font-family: Arial;
+            background:#f4f4f4;
+            text-align:center;
+            padding:40px;
+        }
+
+        .card{
+            background:white;
+            padding:30px;
+            border-radius:10px;
+            width:400px;
+            margin:auto;
+            box-shadow:0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h1{
+            margin-bottom:10px;
+        }
+
+        p{
+            color:gray;
+        }
+
+        .views{
+            margin-top:20px;
+            font-size:14px;
+        }
+
+        button{
+            padding:10px 20px;
+            margin-top:20px;
+            border:none;
+            background:#007bff;
+            color:white;
+            border-radius:5px;
+            cursor:pointer;
+        }
+
+        button:hover{
+            background:#0056b3;
+        }
+    </style>
+
 </head>
+
 <body>
 
-<nav>
-    <h2>{{ profile.name }}</h2>
-    <a href="/memories">View Memories →</a>
-</nav>
+<div class="card">
 
-<section class="profile-section">
     <h1>{{ profile.name }}</h1>
-    <p class="bio">{{ profile.bio }}</p>
 
-    <div class="college-box">
-        <h3>{{ profile.college }}</h3>
-        <p>{{ profile.college_desc }}</p>
+    <p>{{ profile.bio }}</p>
+
+    <div class="views">
+        Page Views: {{ views }}
     </div>
-</section>
 
-<section class="gallery">
-    {% for photo in photos %}
-        <div class="gallery-item">
-            <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}">
-        </div>
-    {% endfor %}
-</section>
+    <br>
+
+    <a href="/captcha">
+        <button>Leave a Message</button>
+    </a>
+
+</div>
 
 </body>
 </html>

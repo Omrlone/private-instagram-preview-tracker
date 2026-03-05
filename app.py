@@ -52,7 +52,17 @@ def generate_question():
 def home():
     global view_count
     view_count += 1
-    return render_template("portfolio.html", views=view_count)
+
+    profile = {
+        "name": "My Portfolio",
+        "bio": "Welcome to my personal website"
+    }
+
+    return render_template(
+        "portfolio.html",
+        views=view_count,
+        profile=profile
+    )
 
 # -------------------------
 
