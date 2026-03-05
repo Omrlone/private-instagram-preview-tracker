@@ -1,201 +1,152 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 import os
 import random
 
-# ==============================
-# APP CONFIG
-# ==============================
-
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "dev-secret")
+# -------------------------
+# Basic Config
+# -------------------------
+app.config['SECRET_KEY'] = 'super-secret-key'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
 db = SQLAlchemy(app)
 
-# ==============================
-# DATABASE MODELS
-# ==============================
+# -------------------------
+# Upload Folder
+# -------------------------
+UPLOAD_FOLDER = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# -------------------------
+# Database Model
+# -------------------------
 class Visitor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    ip = db.Column(db.String(200))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    name = db.Column(db.String(100))
+    message = db.Column(db.Text)
 
-class Image(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(200))
-    page = db.Column(db.String(50))  # portfolio or memories
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+# -------------------------
+# Fake View Counter
+# -------------------------
+view_count = 0
 
-class Profile(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200))
-    bio = db.Column(db.Text)
-    college = db.Column(db.String(200))
-    college_desc = db.Column(db.Text)
-
-# ==============================
-# INIT
-# ==============================
-
-with app.app_context():
-    db.create_all()
-    if not Profile.query.first():
-        profile = Profile(
-            name="Omar Bashir Lone",
-            bio="Entropy at its peak.",
-            college="National Institute Of Technology Srinagar",
-            college_desc="Premier engineering institute located in Srinagar, known for academic excellence and innovation"
-        )
-        db.session.add(profile)
-        db.session.commit()
-
-# ==============================
-# CAPTCHA
-# ==============================
-
-def generate_captcha():
+# -------------------------
+# Math CAPTCHA
+# -------------------------
+def generate_question():
     a = random.randint(1, 10)
     b = random.randint(1, 10)
-    session['captcha'] = str(a + b)
+    session['answer'] = a + b
     return f"{a} + {b} = ?"
 
-# ==============================
-# ROUTES
-# ==============================
+# -------------------------
+# Routes
+# -------------------------
 
-@app.route("/", methods=["GET", "POST"])
-def entry():
+@app.route("/")
+def home():
+    global view_count
+    view_count += 1
+    return render_template("portfolio.html", views=view_count)
+
+# -------------------------
+
+@app.route("/captcha", methods=["GET", "POST"])
+def captcha():
+
     if request.method == "POST":
-        answer = request.form.get("captcha")
-        if answer == session.get("captcha"):
-            return redirect(url_for("portfolio"))
-        else:
-            flash("Wrong CAPTCHA. Try again.")
 
-    question = generate_captcha()
-    return render_template("entry.html", question=question)
+        user_answer = request.form.get("answer")
 
+        if user_answer and int(user_answer) == session.get("answer"):
 
-@app.route("/portfolio")
-def portfolio():
-    ip = request.remote_addr
-    visitor = Visitor(ip=ip)
-    db.session.add(visitor)
-    db.session.commit()
+            name = request.form.get("name")
+            message = request.form.get("message")
 
-    profile = Profile.query.first()
-    images = Image.query.filter_by(page="portfolio").all()
-    total_views = Visitor.query.count()
+            visitor = Visitor(name=name, message=message)
+            db.session.add(visitor)
+            db.session.commit()
 
-    return render_template("portfolio.html",
-                           profile=profile,
-                           images=images,
-                           views=total_views)
+            return redirect(url_for("memories"))
 
+    question = generate_question()
+    return render_template("captcha.html", question=question)
+
+# -------------------------
 
 @app.route("/memories")
 def memories():
-    images = Image.query.filter_by(page="memories").all()
-    return render_template("memories.html", images=images)
+    visitors = Visitor.query.all()
+    return render_template("memories.html", visitors=visitors)
 
+# -------------------------
+# ADMIN LOGIN
+# -------------------------
 
-# ==============================
-# ADMIN DASHBOARD
-# ==============================
-
-ADMIN_USERNAME = "omarlone"
-ADMIN_PASSWORD = "sogamlolabkupwara"
-
+ADMIN_USER = "admin"
+ADMIN_PASS = "password123"
 
 @app.route("/admin", methods=["GET", "POST"])
-def admin():
+def admin_login():
+
     if request.method == "POST":
+
         username = request.form.get("username")
         password = request.form.get("password")
 
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        if username == ADMIN_USER and password == ADMIN_PASS:
             session["admin"] = True
-            return redirect(url_for("dashboard"))
-        else:
-            flash("Invalid credentials")
+            return redirect(url_for("admin_dashboard"))
 
     return render_template("admin_login.html")
 
+# -------------------------
 
-@app.route("/dashboard", methods=["GET", "POST"])
-def dashboard():
+@app.route("/admin/dashboard")
+def admin_dashboard():
+
     if not session.get("admin"):
-        return redirect(url_for("admin"))
+        return redirect(url_for("admin_login"))
 
-    profile = Profile.query.first()
-    images = Image.query.all()
-    visitors = Visitor.query.order_by(Visitor.timestamp.desc()).all()
-    total_views = Visitor.query.count()
+    visitors = Visitor.query.all()
+    return render_template("admin_dashboard.html", visitors=visitors)
 
-    if request.method == "POST":
+# -------------------------
 
-        # Update profile
-        profile.name = request.form.get("name")
-        profile.bio = request.form.get("bio")
-        profile.college = request.form.get("college")
-        profile.college_desc = request.form.get("college_desc")
+@app.route("/admin/delete/<int:id>")
+def delete_visitor(id):
+
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
+
+    visitor = Visitor.query.get(id)
+
+    if visitor:
+        db.session.delete(visitor)
         db.session.commit()
 
-        # Upload image
-        file = request.files.get("image")
-        page = request.form.get("page")
+    return redirect(url_for("admin_dashboard"))
 
-        if file:
-            filename = file.filename
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-
-            new_image = Image(filename=filename, page=page)
-            db.session.add(new_image)
-            db.session.commit()
-
-        flash("Updated successfully")
-        return redirect(url_for("dashboard"))
-
-    return render_template("dashboard.html",
-                           profile=profile,
-                           images=images,
-                           visitors=visitors,
-                           total_views=total_views)
-
-
-@app.route("/delete_image/<int:image_id>")
-def delete_image(image_id):
-    if not session.get("admin"):
-        return redirect(url_for("admin"))
-
-    image = Image.query.get_or_404(image_id)
-
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-
-    db.session.delete(image)
-    db.session.commit()
-
-    return redirect(url_for("dashboard"))
-
+# -------------------------
 
 @app.route("/logout")
 def logout():
     session.pop("admin", None)
-    return redirect(url_for("admin"))
+    return redirect(url_for("home"))
 
+# -------------------------
+# Create DB
+# -------------------------
 
-# ==============================
-# RUN
-# ==============================
+with app.app_context():
+    db.create_all()
+
+# -------------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
